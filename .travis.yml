@@ -1,0 +1,12 @@
+language: python
+
+addons:
+  apt_packages:
+  - zsh
+  - ksh
+
+install:
+  - pip install tox --use-mirrors
+
+script:
+  - tox
