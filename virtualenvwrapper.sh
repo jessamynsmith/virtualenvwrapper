@@ -189,6 +189,16 @@ function virtualenvwrapper_verify_workon_home {
     return $RC
 }
 
+# Deactivate any current environment "destructively", if it exists.
+function virtualenvwrapper_deactivate_active {
+    type deactivate >/dev/null 2>&1
+    if [ $? -eq 0 ]
+    then
+        deactivate
+        unset -f deactivate >/dev/null 2>&1
+    fi
+}
+
 #HOOK_VERBOSE_OPTION="-q"
 
 # Function to wrap mktemp so tests can replace it for error condition
@@ -450,30 +460,42 @@ function mkvirtualenv {
                 requirements="${in_args[$i]}";
                 requirements="$(virtualenvwrapper_expandpath "$requirements")";;
             *)
+                arg="$a"
+                if [[ "$arg" != -* ]]
+                then
+                    # If the argument doesn't start with a '-', it's intended as a virtualenv name.
+                    envname="${in_args[$i]}"
+                    if [ "$envname" = "." ]
+                    then
+                        # The IFS default of breaking on whitespace causes issues if there
+                        # are spaces in the env_name, so change it temporarily.
+                        IFS='%'
+                        envname="$(basename $(pwd))"
+                        arg="$envname"
+                        unset IFS
+                    fi
+                fi
                 if [ ${#out_args} -gt 0 ]
                 then
-                    out_args=( "${out_args[@]-}" "$a" )
+                    out_args=( "${out_args[@]-}" "$arg" )
                 else
-                    out_args=( "$a" )
+                    out_args=( "$arg" )
                 fi;;
         esac
         i=$(( $i + 1 ))
     done
-
-    if [ ! -z $interpreter ]
+    
+    if [ ! -z "$interpreter" ]
     then
-        out_args=( "--python=$interpreter" ${out_args[@]} )
+        out_args=( "--python=$interpreter" "${out_args[@]}" )
     fi;
-
-    set -- "${out_args[@]}"
-
-    eval "envname=\$$#"
+    
     virtualenvwrapper_verify_workon_home || return 1
     virtualenvwrapper_verify_virtualenv || return 1
     (
         [ -n "$ZSH_VERSION" ] && setopt SH_WORD_SPLIT
         virtualenvwrapper_cd "$WORKON_HOME" &&
-        "$VIRTUALENVWRAPPER_VIRTUALENV" $VIRTUALENVWRAPPER_VIRTUALENV_ARGS "$@" &&
+        "$VIRTUALENVWRAPPER_VIRTUALENV" $VIRTUALENVWRAPPER_VIRTUALENV_ARGS "${out_args[@]}" &&
         [ -d "$WORKON_HOME/$envname" ] && \
             virtualenvwrapper_run_hook "pre_mkvirtualenv" "$envname"
     )
@@ -510,6 +532,11 @@ function mkvirtualenv {
     virtualenvwrapper_run_hook "post_mkvirtualenv"
 }
 
+# Remove a list of environments.
+#
+# Usage: mkvirtualenv [-f] ENVNAME
+# If -f is specified with an active virtualenv, deactivate and remove the virtualenv.
+#
 #:help:rmvirtualenv: Remove a virtualenv
 function rmvirtualenv {
     virtualenvwrapper_verify_workon_home || return 1
@@ -521,16 +548,40 @@ function rmvirtualenv {
 
     # support to remove several environments
     typeset env_name
+    force=false
     # Must quote the parameters, as environments could have spaces in their names
     for env_name in "$@"
     do
-        echo "Removing $env_name..."
+        # If the user specifies -f in the middle of the list, it'll only apply
+        # to those envs listed after in the parameters.
+        if [ "$env_name" = "-f" ]
+        then
+            force=true
+            continue
+        fi
+        
+        if [ "$env_name" = "." ]
+        then
+            # The IFS default of breaking on whitespace causes issues if there
+            # are spaces in the env_name, so change it temporarily.
+            IFS='%'
+            env_name="$(basename $(pwd))"
+            unset IFS
+        fi
+
+        echo "Removing \"$env_name\"..."
         typeset env_dir="$WORKON_HOME/$env_name"
         if [ "$VIRTUAL_ENV" = "$env_dir" ]
         then
-            echo "ERROR: You cannot remove the active environment ('$env_name')." >&2
-            echo "Either switch to another environment, or run 'deactivate'." >&2
-            return 1
+            if [ "$force" = true ]
+            then
+                echo "Attempting to deactivate prior to removal."
+                virtualenvwrapper_deactivate_active
+            else
+                echo "ERROR: You cannot remove the active environment ('$env_name')." >&2
+                echo "Either switch to another environment, or run 'deactivate'." >&2
+                return 1
+            fi
         fi
 
         if [ ! -d "$env_dir" ]; then
@@ -730,7 +781,7 @@ function workon {
     elif [ "$env_name" = "." ]
     then
         # The IFS default of breaking on whitespace causes issues if there
-        # are spaces in the env_name, so change it.
+        # are spaces in the env_name, so change it temporarily.
         IFS='%'
         env_name="$(basename $(pwd))"
         unset IFS
@@ -746,15 +797,8 @@ function workon {
         return 1
     fi
 
-    # Deactivate any current environment "destructively"
-    # before switching so we use our override function,
-    # if it exists.
-    type deactivate >/dev/null 2>&1
-    if [ $? -eq 0 ]
-    then
-        deactivate
-        unset -f deactivate >/dev/null 2>&1
-    fi
+    # Deactivate before switching so we use our override function, if it exists.
+    virtualenvwrapper_deactivate_active
 
     virtualenvwrapper_run_hook "pre_activate" "$env_name"
 
@@ -1302,7 +1346,7 @@ function allvirtualenv {
     typeset d
 
     # The IFS default of breaking on whitespace causes issues if there
-    # are spaces in the env_name, so change it.
+    # are spaces in the env_name, so change it temporarily.
     IFS='%'
     virtualenvwrapper_show_workon_options | while read d
     do

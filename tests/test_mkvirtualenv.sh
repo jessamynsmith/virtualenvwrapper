@@ -43,6 +43,42 @@ test_create_space_in_name() {
     assertSame " env with space" "$env_name"
 }
 
+test_create_dot() {
+    mkdir -p "$PROJECT_HOME"
+    cd "$PROJECT_HOME"
+    mkdir "project_for_dot"
+    cd "project_for_dot"
+    mkvirtualenv . >/dev/null 2>&1
+    assertTrue "Environment directory was not created" "[ -d $WORKON_HOME/project_for_dot ]"
+    for hook in postactivate predeactivate postdeactivate
+    do
+        assertTrue "project_for_dot $hook was not created" "[ -f $WORKON_HOME/project_for_dot/bin/$hook ]"
+        assertFalse "project_for_dot $hook is executable" "[ -x $WORKON_HOME/project_for_dot/bin/$hook ]"
+    done
+    assertTrue virtualenvwrapper_verify_active_environment
+    env_name=$(basename "$VIRTUAL_ENV")
+    assertSame "project_for_dot" "$env_name"
+}
+
+test_create_dot_space_in_name() {
+    mkdir -p "$PROJECT_HOME"
+    cd "$PROJECT_HOME"
+    # Only test with leading and internal spaces. Directory names with trailing spaces are legal,
+    # and work with virtualenv on OSX, but error out on Linux.
+    mkdir " project with space"
+    cd " project with space"
+    mkvirtualenv . >/dev/null 2>&1
+    assertTrue "Environment directory was not created" "[ -d \"$WORKON_HOME/ project with space\" ]"
+    for hook in postactivate predeactivate postdeactivate
+    do
+        assertTrue "$hook was not created" "[ -f \"$WORKON_HOME/ project with space/bin/$hook\" ]"
+        assertFalse "$hook is executable" "[ -x \"$WORKON_HOME/ project with space/bin/$hook\" ]"
+    done
+    assertTrue virtualenvwrapper_verify_active_environment
+    env_name=$(basename "$VIRTUAL_ENV")
+    assertSame " project with space" "$env_name"
+}
+
 test_activates () {
     mkvirtualenv "env2" >/dev/null 2>&1
     assertTrue virtualenvwrapper_verify_active_environment

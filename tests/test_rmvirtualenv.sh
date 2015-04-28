@@ -27,9 +27,31 @@ test_remove () {
     assertFalse "[ -d $WORKON_HOME/deleteme ]"
 }
 
+test_remove_force () {
+    workon deleteme
+    assertTrue "[ -d $WORKON_HOME/deleteme ]"
+    rmvirtualenv -f "deleteme"
+    assertFalse "[ -d $WORKON_HOME/deleteme ]"
+}
+
 test_remove_space_in_name () {
     assertTrue "[ -d $WORKON_HOME/\" env with space\" ]"
     rmvirtualenv " env with space"
+    assertFalse "[ -d $WORKON_HOME/\" env with space\" ]"
+}
+
+test_remove_dot () {
+    cd "$WORKON_HOME/deleteme"
+    assertTrue "[ -d $WORKON_HOME/deleteme ]"
+    rmvirtualenv .
+    assertFalse "[ -d $WORKON_HOME/deleteme ]"
+}
+
+test_remove_force_dot_space_in_name () {
+    workon " env with space"
+    cd "$WORKON_HOME/ env with space"
+    assertTrue "[ -d $WORKON_HOME/\" env with space\" ]"
+    rmvirtualenv -f .
     assertFalse "[ -d $WORKON_HOME/\" env with space\" ]"
 }
 

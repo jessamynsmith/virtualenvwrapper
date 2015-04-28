@@ -28,6 +28,10 @@ All command line options except ``-a``, ``-i``, ``-r``, and ``-h`` are passed
 directly to ``virtualenv``.  The new environment is automatically
 activated after being initialized.
 
+If ``"."`` is passed as the environment name, the name is derived from
+the base name of the current working directory (contributed by Jessamyn
+Smith).
+
 ::
 
     $ workon
@@ -139,10 +143,14 @@ Remove an environment, in the WORKON_HOME.
 
 Syntax::
 
-    rmvirtualenv ENVNAME
+    rmvirtualenv [-f] ENVNAME
 
 You must use :ref:`command-deactivate` before removing the current
-environment.
+environment, or specify -f to deactivate and remove.
+
+If ``"."`` is passed as the environment name, the name is derived from
+the base name of the current working directory (contributed by Jessamyn
+Smith).
 
 ::
 
